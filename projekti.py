@@ -4,6 +4,9 @@ import RPi.GPIO as GPIO
 import time
 import requests
 from picamera import PiCamera
+from twilio.rest import Client
+#from flask import Flask, render_template, request
+#app = Flask(__name__)
 
 GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BCM)
@@ -26,6 +29,33 @@ pwm=GPIO.PWM(servo, 50)
 pwm.start(0)
 pwm2=GPIO.PWM(servo2, 50)
 pwm2.start(0)
+
+#app.route("/")
+#def index():
+#    html = open("index.html")
+#    response = html.read().replace('\n', '')
+#    html.close()
+#    return response
+    
+#@app.route("/<otakuva>/")
+#def otakuva(otakuva):
+#    if otakuva == 'otakuva':
+#        print("ok")
+    
+#    return otakuva
+
+def sendSMS():
+    account_sid = 'AC28f3df1936f3b2d3743f229f983fe183'
+    auth_token = '5b8326e94a757503b79beffbb31c0162'
+    my_number = '+358440265420'
+    twilio_number = '+13197748177'
+    client = Client(account_sid,auth_token)
+    message = client.messages.create(
+                body = 'Hiiri säiliö täysi!',
+                from_=twilio_number,
+                to=my_number
+                )
+    return message
 
 def takePhoto():
     timestr = time.strftime("%Y%m%d-%H%M%S")
@@ -108,20 +138,21 @@ fillFactor = 0
 idkaappaus = None
  
 while(1):
+#    if __name__ == "__main__":
+#        app.run(host= '0.0.0.0')
     print("IR tila: ",GPIO.input(IR))
     if GPIO.input(IR):  
         # Close hatch
         setAngle(90)
-        # Take picture with timestamp
+        # Take picture with timestamp as filename and return filename to image-variable
         image = takePhoto()
-        # Send picture taken above to detection-script using tensorflow-model
+        # Send picture's filename taken above to detection-script using tensorflow-model
         mouseDetected = projekti_hiirenTunnistusKuvasta.mouseDetectorFromPicture(image)
         print("tunnistus arvo: ",mouseDetected)
         if (mouseDetected >= 0.7):
           # Open and close bottom hatch
             setAngle2(90)
-            time.sleep(1)
-            setAngle2(0)
+            setAngle2(7)
             
             print('hiiret++')
             # Send photo of the captured thing to web
@@ -134,6 +165,10 @@ while(1):
           # Update mouse container's fill factor procentage via ultrasonic sensor
             fillFactor = checkFillFactor()
             print("fillfaktori: ", fillFactor)
+            # If mouse container is full notify via SMS and terminate script
+            #if (fillFactor == 100):
+                #print(sendSMS())
+                #exit()
 
             sql = "INSERT INTO hiiri VALUES (%s, %s)"
             val = (idkaappaus, fillFactor)
