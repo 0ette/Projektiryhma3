@@ -5,8 +5,6 @@ import time
 import requests
 from picamera import PiCamera
 from twilio.rest import Client
-#from flask import Flask, render_template, request
-#app = Flask(__name__)
 
 GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BCM)
@@ -14,44 +12,32 @@ GPIO.setmode(GPIO.BCM)
 #set GPIO Pins
 TRIGGER = 18
 ECHO = 23
-servo2 = 22
+TRIGGER2 = 2
+ECHO2 = 3
+servo2 = 27
 servo = 17
-IR = 27
 
 #set GPIO direction (IN / OUT)
 GPIO.setup(TRIGGER, GPIO.OUT)
 GPIO.setup(ECHO, GPIO.IN)
+GPIO.setup(TRIGGER2, GPIO.OUT)
+GPIO.setup(ECHO2, GPIO.IN)
 GPIO.setup(servo, GPIO.OUT)
 GPIO.setup(servo2, GPIO.OUT)
-GPIO.setup(IR, GPIO.IN)
 
 pwm=GPIO.PWM(servo, 50)
 pwm.start(0)
 pwm2=GPIO.PWM(servo2, 50)
 pwm2.start(0)
 
-#app.route("/")
-#def index():
-#    html = open("index.html")
-#    response = html.read().replace('\n', '')
-#    html.close()
-#    return response
-    
-#@app.route("/<otakuva>/")
-#def otakuva(otakuva):
-#    if otakuva == 'otakuva':
-#        print("ok")
-    
-#    return otakuva
-
 def sendSMS():
     account_sid = 'AC28f3df1936f3b2d3743f229f983fe183'
-    auth_token = '5b8326e94a757503b79beffbb31c0162'
+    auth_token = ''
     my_number = '+358440265420'
     twilio_number = '+13197748177'
     client = Client(account_sid,auth_token)
     message = client.messages.create(
-                body = 'Hiiri säiliö täysi!',
+                body = 'Hiiri sailio taysi!',
                 from_=twilio_number,
                 to=my_number
                 )
@@ -76,8 +62,50 @@ def sendPhotoToWeb(imgName):
     rq = requests.post(url,files=files)
     # Wait for 10 milliseconds
     time.sleep(0.01)
-    messageBack = "Viimeksi web-palvelimelle lähetetty kuva: " + imgName
+    messageBack = "Viimeksi web-palvelimelle lahetetty kuva: " + imgName
     return messageBack
+
+def sendTakenPhotoToWeb(imgName):
+    url = "http://stulinux53.ipt.oamk.fi/codeigniter/application/models/photoTakenUpload.php/"
+    # send file to server
+    files = {'file': open('/home/pi/tensorflow1/models/research/object_detection/kuvat/%s' % imgName, 'rb')}
+    rq = requests.post(url,files=files)
+    # Wait for 10 milliseconds
+    time.sleep(0.01)
+    messageBack = "Viimeksi web-palvelimelle lahetetty juuri otettu kuva: " + imgName
+    return messageBack
+
+def movementDetector():
+    movementDetected = 0
+    # set Trigger to HIGH
+    GPIO.output(TRIGGER2, True)
+    # set Trigger after 0.01ms to LOW
+    time.sleep(0.00001)
+    GPIO.output(TRIGGER2, False)
+    startTime = time.time()
+    stopTime = time.time()
+    # save StartTime
+    while GPIO.input(ECHO2) == 0:
+        startTime = time.time()
+    # save time of arrival
+    while GPIO.input(ECHO2) == 1:
+        stopTime = time.time()
+ 
+    # time difference between start and arrival
+    timeElapsed = stopTime - startTime
+    # multiply with the sonic speed (34300 cm/s)
+    # and divide by 2, because there and back
+    distance = (timeElapsed * 34300) / 2
+    
+    #print ("Measured Distance = %.1f cm" % distance)
+    time.sleep(0.2)
+    #print(distance)
+    if (distance > 14 or distance < 8):
+        movementDetected = 1
+    else:
+        movementDetected = 0
+        
+    return movementDetected
 
 def checkFillFactor():
     # set Trigger to HIGH
@@ -102,16 +130,17 @@ def checkFillFactor():
     
     #print ("Measured Distance = %.1f cm" % distance)
     time.sleep(1)
+    #print("fillfaktori etaisyys", distance)
     fillFactor = 0
     if (distance <= 4):
         fillFactor = 100
-    elif (distance <= 9):
+    elif (distance <= 8):
         fillFactor = 75
-    elif (distance <= 14):
+    elif (distance <= 11):
         fillFactor = 50
-    elif (distance <= 19):
+    elif (distance <= 14):
         fillFactor = 25
-    elif (distance >= 22.5):
+    elif (distance >= 13):
         fillFactor = 0
     
     #print(fillFactor)
@@ -136,23 +165,27 @@ def setAngle2(angle):
 mouses = 0
 fillFactor = 0
 idkaappaus = None
- 
+setAngle2(155)
+setAngle(65)
+
 while(1):
-#    if __name__ == "__main__":
-#        app.run(host= '0.0.0.0')
-    print("IR tila: ",GPIO.input(IR))
-    if GPIO.input(IR):  
+    if movementDetector():
         # Close hatch
-        setAngle(90)
+        setAngle(140)
         # Take picture with timestamp as filename and return filename to image-variable
         image = takePhoto()
         # Send picture's filename taken above to detection-script using tensorflow-model
         mouseDetected = projekti_hiirenTunnistusKuvasta.mouseDetectorFromPicture(image)
         print("tunnistus arvo: ",mouseDetected)
-        if (mouseDetected >= 0.7):
+        """
+        if (takePhoto == ""):
+            image = takePhoto()
+            print(sendTakenPhotoToWeb(image))
+        """
+        if (mouseDetected >= 0.6):
           # Open and close bottom hatch
-            setAngle2(90)
             setAngle2(7)
+            setAngle2(155)
             
             print('hiiret++')
             # Send photo of the captured thing to web
@@ -166,9 +199,9 @@ while(1):
             fillFactor = checkFillFactor()
             print("fillfaktori: ", fillFactor)
             # If mouse container is full notify via SMS and terminate script
-            #if (fillFactor == 100):
-                #print(sendSMS())
-                #exit()
+            if (fillFactor == 100):
+                print(sendSMS())
+                exit()
 
             sql = "INSERT INTO hiiri VALUES (%s, %s)"
             val = (idkaappaus, fillFactor)
@@ -184,10 +217,10 @@ while(1):
             # Diconnect from the server    
             mydb.close()
             # Open front hatch for a new entrapment
-            setAngle(0)
+            setAngle(65)
             
         else:
             # If mouse wasn't detected, let wrongfully captured thing out
-            setAngle(0)
+            setAngle(65)
             print('else')
             
