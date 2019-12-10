@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<body bgcolor=CCCCCC>
+
+<h1>Ota kuva RaspiCamv2:lla</h1>
+
+<div id="slidecontainer">
+<button onclick="buttonClick()">Ota kuva</button>
+<p id="button1"></p>
+</div> 
+<script>
+
+function buttonClick() {
+  var output = (document.getElementById("button1").html = "OtaKuva");
+  var xhttp = new XMLHttpRequest();
+  xhttp.onreadystatechange = function() {
+    if (this.readyState == 4 && this.status == 200) {
+    }
+  };
+  xhttp.open("GET", "http://10.100.4.97:5000/web_output?output=" + output, true);
+  xhttp.send();
+  xhttp.open("GET", "http://raspberrypi:5000/web_output?output=" + output, true);
+  xhttp.send();
+  xhttp.open("GET", "http://10.100.4.101:5000/web_output?output=" + output, true);
+  xhttp.send();
+  
+}
+</script>
+
+</body>
+</html>
+
