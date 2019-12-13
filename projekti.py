@@ -90,16 +90,12 @@ def movementDetector():
     # save time of arrival
     while GPIO.input(ECHO2) == 1:
         stopTime = time.time()
- 
     # time difference between start and arrival
     timeElapsed = stopTime - startTime
     # multiply with the sonic speed (34300 cm/s)
     # and divide by 2, because there and back
     distance = (timeElapsed * 34300) / 2
-    
-    #print ("Measured Distance = %.1f cm" % distance)
     time.sleep(0.2)
-    #print(distance)
     if (distance > 14 or distance < 8):
         movementDetected = 1
     else:
@@ -121,13 +117,11 @@ def checkFillFactor():
     # save time of arrival
     while GPIO.input(ECHO) == 1:
         stopTime = time.time()
- 
     # time difference between start and arrival
     timeElapsed = stopTime - startTime
     # multiply with the sonic speed (34300 cm/s)
     # and divide by 2, because there and back
     distance = (timeElapsed * 34300) / 2
-    
     #print ("Measured Distance = %.1f cm" % distance)
     time.sleep(1)
     #print("fillfaktori etaisyys", distance)
@@ -142,11 +136,10 @@ def checkFillFactor():
         fillFactor = 25
     elif (distance >= 13):
         fillFactor = 0
-    
-    #print(fillFactor)
+
     return fillFactor
 
-def setAngle(angle):
+def setFrontHatchAngle(angle):
     duty = angle / 20 + 2
     GPIO.output(servo, True)
     pwm.ChangeDutyCycle(duty)
@@ -154,7 +147,7 @@ def setAngle(angle):
     GPIO.output(servo, False)
     pwm.ChangeDutyCycle(0)
     
-def setAngle2(angle):
+def setBottomHatchAngle(angle):
     duty = angle / 20 + 2
     GPIO.output(servo2, True)
     pwm2.ChangeDutyCycle(duty)
@@ -165,32 +158,26 @@ def setAngle2(angle):
 mouses = 0
 fillFactor = 0
 idkaappaus = None
-setAngle2(155)
-setAngle(65)
+setBottomHatchAngle(155)
+setFrontHatchAngle(65)
 
 while(1):
     if movementDetector():
         # Close hatch
-        setAngle(140)
+        setFrontHatchAngle(140)
         # Take picture with timestamp as filename and return filename to image-variable
         image = takePhoto()
         # Send picture's filename taken above to detection-script using tensorflow-model
         mouseDetected = projekti_hiirenTunnistusKuvasta.mouseDetectorFromPicture(image)
         print("tunnistus arvo: ",mouseDetected)
-        """
-        if (takePhoto == ""):
-            image = takePhoto()
-            print(sendTakenPhotoToWeb(image))
-        """
         if (mouseDetected >= 0.6):
           # Open and close bottom hatch
-            setAngle2(7)
-            setAngle2(155)
-            
+            setBottomHatchAngle(7)
+            setBottomHatchAngle(155)
             print('hiiret++')
             # Send photo of the captured thing to web
             print(sendPhotoToWeb(image))
-            
+
             # Open mysql-connection
             mydb = mysql.connector.connect(host="stulinux53.ipt.oamk.fi",user="ryhma3",passwd="meolemmeryhma3",database="codeigniter") 
             mycursor = mydb.cursor()
@@ -198,11 +185,7 @@ while(1):
           # Update mouse container's fill factor procentage via ultrasonic sensor
             fillFactor = checkFillFactor()
             print("fillfaktori: ", fillFactor)
-            # If mouse container is full notify via SMS and terminate script
-            if (fillFactor == 100):
-                print(sendSMS())
-                exit()
-
+  
             sql = "INSERT INTO hiiri VALUES (%s, %s)"
             val = (idkaappaus, fillFactor)
             
@@ -216,11 +199,17 @@ while(1):
                 
             # Diconnect from the server    
             mydb.close()
+            
+            # If mouse container is full notify via SMS and terminate script
+            if (fillFactor == 100):
+                print(sendSMS())
+                exit()
+                
             # Open front hatch for a new entrapment
-            setAngle(65)
+            setFrontHatchAngle(65)
             
         else:
             # If mouse wasn't detected, let wrongfully captured thing out
-            setAngle(65)
+            setFrontHatchAngle(65)
             print('else')
             
